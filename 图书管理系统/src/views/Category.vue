@@ -1,0 +1,211 @@
+<template>
+  <div style="padding: 10px">
+    <el-table
+        v-loading="loading"
+        :data="tableData"
+        border
+        stripe
+        style="width: 100%"
+        row-key="id"
+        default-expand-all
+    >
+      <el-table-column
+          prop="name"
+          label="名称">
+      </el-table-column>
+      <el-table-column label="操作">
+        <template #default="scope">
+          <el-button size="mini" @click="handleEdit(scope.row)" v-if="user.role === 1">编辑</el-button>
+          <el-popconfirm title="确定删除吗？" @confirm="handDelete(scope.row.id)" v-if="user.role === 1">
+            <template #reference>
+              <el-button size="mini" type="danger">删除</el-button>
+            </template>
+          </el-popconfirm>
+        </template>
+      </el-table-column>
+    </el-table>
+
+    <el-card style="margin: 10px 0; width: 50%">
+      <div class="custom-tree-container">
+        <el-tree :data="tableData" :props="defaultProps" show-checkbox
+                 @check-change="handleCheckChange"
+                 node-key="id"
+                 :default-expanded-keys="[1, 2]"
+                 :default-checked-keys="checkedList"
+        >
+          <template #default="{ node, data }">
+        <span class="custom-tree-node">
+          <span>{{ node.label }}</span>
+            <el-button size="mini" type="danger">
+            <a
+                @click="remove(node, data)">
+              Delete
+            </a>
+          </el-button>
+        </span>
+          </template>
+        </el-tree>
+      </div>
+    </el-card>
+
+    <div style="margin: 10px 0">
+      <el-dialog title="提示" :visible.sync="dialogVisible" width="30%">
+        <el-form :model="form" label-width="120px">
+          <el-form-item label="名称">
+            <el-input v-model="form.name" style="width: 60%"></el-input>
+          </el-form-item>
+        </el-form>
+        <span slot="footer" class="dialog-footer">
+            <el-button @click="dialogVisible = false">取 消</el-button>
+            <el-button type="primary" @click="save">确 定</el-button>
+          </span>
+      </el-dialog>
+    </div>
+  </div>
+</template>
+
+
+<script>
+import request from "@/utils/rquest";
+
+export default {
+  name: 'Category',
+  components: {
+  },
+  data() {
+    return {
+      user: {},
+      loading: true,
+      form: {},
+      dialogVisible: false,
+      search: '',
+      currentPage: 1,
+      pageSize: 10,
+      total: 0,
+      tableData: [],
+      defaultProps: {
+        children: 'children',
+        label: 'name'
+      },
+      checkedList: [],
+      options: []
+    }
+  },
+  created() {
+    let userStr = sessionStorage.getItem("user") || "{}"
+    this.user = JSON.parse(userStr)
+    // 请求服务端，确认当前登录用户的 合法信息
+    request.get("/user/" + this.user.id).then(res => {
+      if (res.code === '0') {
+        this.user = res.data
+      }
+    })
+    this.load()
+  },
+  methods: {
+    remove(node, data) {
+      request.delete("/category/" + data.id).then(res => {
+        this.load()
+      })
+    },
+    handleCheckChange(data, checked, indeterminate) {
+      console.log(data.id);
+      console.log(data.name);
+    },
+    load() {
+      this.loading = true
+      request.get("/category").then(res => {
+        this.loading = false
+        this.tableData = res.data
+
+        // 赋值选中的节点
+        let checkedData = [4];
+        this.checkedList = checkedData
+      })
+
+    },
+    add() {
+      this.dialogVisible = true
+      this.form = {}
+    },
+    save() {
+      if (this.form.id) {  // 更新
+        request.put("/category", this.form).then(res => {
+          console.log(res)
+          if (res.code === '0') {
+            this.$message({
+              type: "success",
+              message: "更新成功"
+            })
+          } else {
+            this.$message({
+              type: "error",
+              message: res.msg
+            })
+          }
+          this.load() // 刷新表格的数据
+          this.dialogVisible = false  // 关闭弹窗
+        })
+      }  else {  // 新增
+        request.post("/category", this.form).then(res => {
+          console.log(res)
+          if (res.code === '0') {
+            this.$message({
+              type: "success",
+              message: "新增成功"
+            })
+          } else {
+            this.$message({
+              type: "error",
+              message: res.msg
+            })
+          }
+          this.load() // 刷新表格的数据
+          this.dialogVisible = false  // 关闭弹窗
+        })
+      }
+    },
+    handleEdit(row) {
+      this.form = JSON.parse(JSON.stringify(row))
+      this.dialogVisible = true
+
+    },
+    handDelete(id) {
+      console.log(id)
+      request.delete("/category/" + id).then(res => {
+        if (res.code === '0') {
+          this.$message({
+            type: "success",
+            message: "删除成功"
+          })
+        } else {
+          this.$message({
+            type: "error",
+            message: res.msg
+          })
+        }
+        this.load()  // 删除之后重新加载表格的数据
+      })
+    },
+    handleSizeChange(pageSize) {   // 改变当前每页的个数触发
+      this.pageSize = pageSize
+      this.load()
+    },
+    handleCurrentChange(pageNum) {  // 改变当前页码触发
+      this.currentPage = pageNum
+      this.load()
+    }
+  }
+}
+</script>
+
+<style>
+.custom-tree-node {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 14px;
+  padding-right: 8px;
+}
+</style>
